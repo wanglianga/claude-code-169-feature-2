@@ -46,6 +46,8 @@ app:
     odor-threshold: 70         # 异味值 >= 70 视为异味告警
     points-per-kg: 10          # 正确投放每公斤积分
     wrong-sort-deduction: 5    # 错投扣减积分（不低于0）
+    camera-misjudge-min-reviews: 2   # 同一摄像头复核样本数达到该值后评估误判率
+    camera-misjudge-rate-pct: 50     # 误判率(%)达到该阈值 -> 摄像头校准 + 错投处罚暂停自动生效
 
 management:
   endpoints:

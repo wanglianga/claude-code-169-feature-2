@@ -112,6 +112,8 @@ public class LinkageEngine {
             }
             case MISSORT, CAMERA_MISJUDGE -> createTask(gc, TaskType.RECHECK_SORTING, "PROPERTY", 55,
                     "摄像头识别疑似错投，现场复核并督导", alert.getId());
+            case CAMERA_CALIBRATION -> createTask(gc, TaskType.CAMERA_CALIBRATION, "PROPERTY", 65,
+                    "摄像头误判率升高，执行设备校准并人工抽检；校准期间错投处罚暂停自动生效", alert.getId());
             case NIGHT_PEAK -> createTask(gc, TaskType.CLEANING, "PROPERTY", 50,
                     "夜间投放高峰，增派保洁值守", alert.getId());
             case DEVICE_OFFLINE -> createTask(gc, TaskType.REPAIR, "PROPERTY", 75,

@@ -1,13 +1,18 @@
 package com.city.garbage.api;
 
+import com.city.garbage.api.dto.AppealReviewRequest;
 import com.city.garbage.api.dto.AssignTaskRequest;
 import com.city.garbage.api.dto.CompleteTaskRequest;
 import com.city.garbage.api.dto.ComplaintReplyRequest;
 import com.city.garbage.api.dto.ComplaintRequest;
 import com.city.garbage.domain.*;
 import com.city.garbage.repo.AlertRepository;
+import com.city.garbage.repo.AppealCaseRepository;
 import com.city.garbage.repo.ComplaintRepository;
 import com.city.garbage.repo.GovernanceCaseRepository;
+import com.city.garbage.repo.ModelFeedbackSampleRepository;
+import com.city.garbage.service.AppealReviewService;
+import com.city.garbage.service.CameraStatService;
 import com.city.garbage.service.ComplaintService;
 import com.city.garbage.service.DisposalService;
 import com.city.garbage.service.WorkTaskService;
@@ -29,9 +34,13 @@ public class PropertyController {
     private final WorkTaskService taskService;
     private final ComplaintService complaintService;
     private final DisposalService disposalService;
+    private final AppealReviewService appealReviewService;
+    private final CameraStatService cameraStatService;
     private final AlertRepository alertRepository;
     private final GovernanceCaseRepository caseRepository;
     private final ComplaintRepository complaintRepository;
+    private final AppealCaseRepository appealRepository;
+    private final ModelFeedbackSampleRepository feedbackRepository;
 
     @Operation(summary = "待处理任务列表（按优先级排序：保洁/消杀/维修/错投复核/整改）")
     @GetMapping("/tasks/pending")
@@ -96,6 +105,38 @@ public class PropertyController {
     @PostMapping("/complaints/{id}/reply")
     public Complaint replyComplaint(@PathVariable Long id, @Valid @RequestBody ComplaintReplyRequest req) {
         return complaintService.reply(id, req.reply());
+    }
+
+    @Operation(summary = "待复核申诉列表（含证据包：视频片段、称重变化、桶位、居民说明）")
+    @GetMapping("/appeals/pending")
+    public List<AppealCase> pendingAppeals() {
+        return appealReviewService.pendingAppeals();
+    }
+
+    @Operation(summary = "全部申诉复核单")
+    @GetMapping("/appeals")
+    public List<AppealCase> allAppeals() {
+        return appealRepository.findAll();
+    }
+
+    @Operation(summary = "复核申诉结论",
+            description = "误判成立：积分恢复、样本回传识别模型、累计摄像头误判率（超标则设备进入校准）；"
+                    + "违规成立：居民收到分类教育任务")
+    @PostMapping("/appeals/{id}/review")
+    public AppealCase reviewAppeal(@PathVariable Long id, @Valid @RequestBody AppealReviewRequest req) {
+        return appealReviewService.review(id, req.accepted(), req.reviewNote());
+    }
+
+    @Operation(summary = "摄像头误判统计与校准状态（校准中错投处罚暂停自动生效）")
+    @GetMapping("/cameras")
+    public List<CameraStat> cameras() {
+        return cameraStatService.all();
+    }
+
+    @Operation(summary = "已回传识别模型的误判样本")
+    @GetMapping("/model-feedback")
+    public List<ModelFeedbackSample> modelFeedback() {
+        return feedbackRepository.findAllByOrderByCreatedAtDesc();
     }
 
     @Operation(summary = "立即核查并补发所有未到账积分（积分未到账整改）")

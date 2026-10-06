@@ -22,6 +22,7 @@ public class WorkTaskService {
     private final AlertRepository alertRepository;
     private final GarbageRoomRepository roomRepository;
     private final LinkageEngine engine;
+    private final CameraStatService cameraStatService;
     private final TimeService timeService;
 
     /** 物业端待处理任务（保洁、消杀、维修、错投复核、整改） */
@@ -76,6 +77,17 @@ public class WorkTaskService {
                 room.setLastHeartbeatAt(timeService.now());
                 roomRepository.save(room);
                 engine.resolveByType(room.getCode(), AlertType.DEVICE_OFFLINE, "现场检修恢复联网：" + note);
+            }
+            case CAMERA_CALIBRATION -> {
+                // 校准完成：解除该房所有校准中摄像头的处罚暂停，并销校准告警
+                for (Alert a : alertRepository.findByRoomCodeAndStatusIn(room.getCode(),
+                        List.of(AlertStatus.OPEN, AlertStatus.LINKED))) {
+                    if (a.getType() == AlertType.CAMERA_CALIBRATION && a.getDedupeKey() != null
+                            && a.getDedupeKey().startsWith("CAMERA_CALIBRATION:")) {
+                        cameraStatService.calibrate(a.getDedupeKey().substring("CAMERA_CALIBRATION:".length()));
+                    }
+                }
+                engine.resolveByType(room.getCode(), AlertType.CAMERA_CALIBRATION, "摄像头校准完成：" + note);
             }
             default -> { /* 清运/复核类由专门接口闭环 */ }
         }

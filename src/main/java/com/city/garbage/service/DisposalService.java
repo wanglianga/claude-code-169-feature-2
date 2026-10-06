@@ -32,13 +32,14 @@ public class DisposalService {
     private final PointsLedgerRepository ledgerRepository;
     private final AlertRepository alertRepository;
     private final LinkageEngine engine;
+    private final CameraStatService cameraStatService;
     private final LinkageProperties props;
     private final TimeService timeService;
 
     @Transactional
     public DisposalRecord dispose(String cardNo, String roomCode, WasteType binType,
                                   WasteType detectedTypeRaw, Double weightKg, Double confidence,
-                                  boolean deferPoints) {
+                                  String cameraCode, boolean deferPoints) {
         Resident resident = residentRepository.findByCardNo(cardNo)
                 .orElseThrow(() -> new BusinessException("卡号未登记: " + cardNo));
         GarbageRoom room = roomRepository.findByCode(roomCode)
@@ -49,6 +50,9 @@ public class DisposalService {
 
         WasteType detected = detectedTypeRaw != null ? detectedTypeRaw : binType;
         boolean wrong = detected != binType;
+        String camera = (cameraCode == null || cameraCode.isBlank()) ? "CAM-" + roomCode : cameraCode;
+        // 摄像头校准中：错投处罚暂停自动生效，只记录不扣分，待人工复核
+        boolean penaltySuspended = wrong && cameraStatService.isSuspended(camera);
 
         DisposalRecord r = new DisposalRecord();
         r.setResidentId(resident.getId());
@@ -61,6 +65,8 @@ public class DisposalService {
         r.setWeightKg(weightKg);
         r.setWrongSort(wrong);
         r.setConfidence(confidence);
+        r.setCameraCode(camera);
+        r.setPenaltySuspended(penaltySuspended);
         r.setCreatedAt(now);
 
         if (deferPoints) {
@@ -84,15 +90,25 @@ public class DisposalService {
 
         int points;
         if (wrong) {
-            // 错投：不予积分并记录违规提示，提示现场整改；扣分不使积分为负
-            int deduct = Math.min(props.getWrongSortDeduction(), resident.getTotalPoints());
-            points = -deduct;
-            resident.setTotalPoints(resident.getTotalPoints() - deduct);
-            r.setPointsChange(points);
-            r.setViolationMessage("疑似错投：您投入" + binType.getLabel() + "桶，摄像头识别为"
-                    + detected.getLabel() + "，本次不计分并扣" + deduct + "分，可在3日内申请复核");
-            r.setStatus(DisposalStatus.SETTLED);
-            r.setSettledAt(now);
+            if (penaltySuspended) {
+                // 摄像头校准中：处罚暂停自动生效，本次不扣分，待人工复核结论
+                points = 0;
+                r.setPointsChange(0);
+                r.setViolationMessage("疑似错投：您投入" + binType.getLabel() + "桶，摄像头识别为"
+                        + detected.getLabel() + "。该摄像头校准中，本次处罚暂缓生效，待人工复核");
+                r.setStatus(DisposalStatus.SETTLED);
+                r.setSettledAt(now);
+            } else {
+                // 错投：不予积分并记录违规提示，提示现场整改；扣分不使积分为负
+                int deduct = Math.min(props.getWrongSortDeduction(), resident.getTotalPoints());
+                points = -deduct;
+                resident.setTotalPoints(resident.getTotalPoints() - deduct);
+                r.setPointsChange(points);
+                r.setViolationMessage("疑似错投：您投入" + binType.getLabel() + "桶，摄像头识别为"
+                        + detected.getLabel() + "，本次不计分并扣" + deduct + "分，可在3日内申请复核");
+                r.setStatus(DisposalStatus.SETTLED);
+                r.setSettledAt(now);
+            }
         } else {
             points = weightKg != null ? (int) Math.round(weightKg * props.getPointsPerKg()) : 0;
             resident.setTotalPoints(resident.getTotalPoints() + points);
@@ -103,14 +119,17 @@ public class DisposalService {
         }
         r = disposalRepository.save(r);
         residentRepository.save(resident);
-        ledgerRepository.save(new PointsLedger(resident.getId(), r.getId(), points,
-                resident.getTotalPoints(),
-                wrong ? "错投扣减：识别为" + detected.getLabel() : binType.getLabel() + "正确投放 " + weightKg + "kg", now));
+        if (!penaltySuspended) {
+            ledgerRepository.save(new PointsLedger(resident.getId(), r.getId(), points,
+                    resident.getTotalPoints(),
+                    wrong ? "错投扣减：识别为" + detected.getLabel() : binType.getLabel() + "正确投放 " + weightKg + "kg", now));
+        }
 
         if (wrong) {
             Alert alert = engine.raiseAlert(room, AlertType.MISSORT, AlertSeverity.MEDIUM,
                     "居民" + maskCard(cardNo) + "在" + room.getName() + "错投：投" + binType.getLabel()
-                            + "识别为" + detected.getLabel() + "（置信度" + confidence + "）",
+                            + "识别为" + detected.getLabel() + "（置信度" + confidence + "）"
+                            + (penaltySuspended ? "（摄像头校准中，处罚暂缓）" : ""),
                     "MISSORT:DISPOSAL:" + r.getId(), r.getId(), null);
             r.setCaseNo(alert.getCaseNo());
             disposalRepository.save(r);
@@ -137,56 +156,6 @@ public class DisposalService {
                     "NIGHT_PEAK:" + room.getCode() + ":" + today, null, null);
         }
         roomRepository.save(room);
-    }
-
-    /** 居民对摄像头错投判罚申诉：现场复核成立则撤销违规、退还扣分 */
-    @Transactional
-    public DisposalRecord appeal(Long disposalId, String reason) {
-        DisposalRecord r = disposalRepository.findById(disposalId)
-                .orElseThrow(() -> new BusinessException("投放记录不存在: " + disposalId));
-        if (!r.isWrongSort()) {
-            throw new BusinessException("该记录无错投判罚，无需申诉");
-        }
-        if (r.getStatus() == DisposalStatus.APPEAL_ACCEPTED || r.getStatus() == DisposalStatus.APPEAL_REJECTED) {
-            throw new BusinessException("该申诉已处理：" + r.getStatus());
-        }
-        r.setStatus(DisposalStatus.APPEALING);
-        r.setViolationMessage("错投申诉处理中：" + reason);
-        return disposalRepository.save(r);
-    }
-
-    @Transactional
-    public DisposalRecord reviewAppeal(Long disposalId, boolean accepted, String reviewNote) {
-        DisposalRecord r = disposalRepository.findById(disposalId)
-                .orElseThrow(() -> new BusinessException("投放记录不存在: " + disposalId));
-        OffsetDateTime now = timeService.now();
-        if (accepted) {
-            Resident resident = residentRepository.findById(r.getResidentId())
-                    .orElseThrow(() -> new BusinessException("居民不存在"));
-            int refund = Math.abs(r.getPointsChange());
-            resident.setTotalPoints(resident.getTotalPoints() + refund);
-            residentRepository.save(resident);
-            r.setPointsChange(0);
-            r.setWrongSort(false);
-            r.setStatus(DisposalStatus.APPEAL_ACCEPTED);
-            r.setViolationMessage("申诉成立，摄像头误判，已撤销违规并退还" + refund + "积分");
-            ledgerRepository.save(new PointsLedger(resident.getId(), r.getId(), refund,
-                    resident.getTotalPoints(), "申诉成立退还：摄像头误判", now));
-            // 摄像头误判告警/错投告警忽略销单
-            GarbageRoom room = roomRepository.findByCode(r.getRoomCode())
-                    .orElseThrow(() -> new BusinessException("垃圾房不存在"));
-            engine.raiseAlert(room, AlertType.CAMERA_MISJUDGE, AlertSeverity.LOW,
-                    "投放#" + r.getId() + "摄像头误判，复核成立：" + reviewNote,
-                    "CAMERA_MISJUDGE:DISPOSAL:" + r.getId(), r.getId(), null);
-            for (Alert a : alertRepository.findByDisposalIdAndStatusIn(r.getId(),
-                    List.of(AlertStatus.OPEN, AlertStatus.LINKED))) {
-                engine.resolveAlert(a, "复核成立：摄像头误判，" + reviewNote, true);
-            }
-        } else {
-            r.setStatus(DisposalStatus.APPEAL_REJECTED);
-            r.setViolationMessage("申诉驳回，维持错投判罚：" + reviewNote);
-        }
-        return disposalRepository.save(r);
     }
 
     /** 对长期未结算的投放补发积分（积分未到账整改），补发后解除对应告警与整改任务 */

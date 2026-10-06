@@ -25,7 +25,8 @@ import static org.awaitility.Awaitility.await;
 @ActiveProfiles("local")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = "app.kafka.enabled=true")
-@TestPropertySource(properties = "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}")
+@TestPropertySource(properties = {"spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
+        "spring.datasource.url=jdbc:h2:mem:kafka-smoke;MODE=PostgreSQL;DB_CLOSE_DELAY=-1"})
 class KafkaLinkageSmokeTest {
 
     @Autowired TestRestTemplate http;

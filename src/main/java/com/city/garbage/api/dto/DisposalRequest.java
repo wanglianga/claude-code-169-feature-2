@@ -13,6 +13,8 @@ public record DisposalRequest(
         WasteType detectedType,
         Double weightKg,
         Double confidence,
+        /** 识别摄像头编号，不传默认 CAM-{roomCode} */
+        String cameraCode,
         /** true=设备断网/积分通道异常，积分暂挂待核查补发 */
         boolean deferPoints
 ) {

@@ -57,6 +57,14 @@ public class DisposalRecord {
 
     private Double confidence;
 
+    /** 识别该次投放的摄像头（默认 CAM-{roomCode}） */
+    @Column(name = "camera_code", length = 64)
+    private String cameraCode;
+
+    /** true=摄像头校准中，本次错投处罚暂停自动生效（未扣分，待人工复核） */
+    @Column(name = "penalty_suspended", nullable = false)
+    private boolean penaltySuspended = false;
+
     /** 现场给居民的违规提示文案 */
     @Column(length = 255)
     private String violationMessage;

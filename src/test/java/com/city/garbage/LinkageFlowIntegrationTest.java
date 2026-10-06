@@ -29,6 +29,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @ActiveProfiles("local")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@org.springframework.test.context.TestPropertySource(properties =
+        "spring.datasource.url=jdbc:h2:mem:linkage-flow;MODE=PostgreSQL;DB_CLOSE_DELAY=-1")
 class LinkageFlowIntegrationTest {
 
     @Autowired TestRestTemplate http;

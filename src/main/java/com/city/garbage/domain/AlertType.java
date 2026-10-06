@@ -11,7 +11,8 @@ public enum AlertType {
     ODOR_COMPLAINT("异味投诉"),
     NOT_CLEANED_AFTER_COLLECTION("清运后未清洁"),
     POINTS_UNSETTLED("积分未到账"),
-    CAMERA_MISJUDGE("摄像头误判申诉");
+    CAMERA_MISJUDGE("摄像头误判申诉"),
+    CAMERA_CALIBRATION("摄像头误判率升高待校准");
 
     private final String label;
     AlertType(String label) { this.label = label; }
