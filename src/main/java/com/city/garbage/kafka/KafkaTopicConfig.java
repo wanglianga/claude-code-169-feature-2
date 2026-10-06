@@ -18,6 +18,8 @@ public class KafkaTopicConfig {
 
     public static final String DEVICE_EVENTS = "device-events";
     public static final String GOVERNANCE_EVENTS = "governance-events";
+    /** 误判复核成立后回传识别模型的纠偏样本 */
+    public static final String MODEL_FEEDBACK = "model-feedback";
 
     @Bean
     public NewTopic deviceEventsTopic() {
@@ -27,5 +29,10 @@ public class KafkaTopicConfig {
     @Bean
     public NewTopic governanceEventsTopic() {
         return TopicBuilder.name(GOVERNANCE_EVENTS).partitions(3).replicas(1).build();
+    }
+
+    @Bean
+    public NewTopic modelFeedbackTopic() {
+        return TopicBuilder.name(MODEL_FEEDBACK).partitions(1).replicas(1).build();
     }
 }

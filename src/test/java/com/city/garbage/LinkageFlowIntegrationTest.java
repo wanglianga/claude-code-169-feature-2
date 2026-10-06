@@ -168,11 +168,16 @@ class LinkageFlowIntegrationTest {
         post("/api/property/tasks/" + disinfectionTaskId + "/complete", Map.of("note", "已消杀并冲洗"));
         assertThat(openAlerts("ROOM1", AlertType.ODOR)).isZero();
 
-        // 居民申诉摄像头误判 -> 复核成立：撤销违规、退还 5 分
-        post("/api/resident/disposals/" + disposalId + "/appeal", Map.of("reason", "投的是剩菜，摄像头误判"));
+        // 居民申诉摄像头误判 -> 服务自动调取证据 -> 复核成立：撤销违规、退还 5 分
+        JsonNode appeal = post("/api/resident/disposals/" + disposalId + "/appeal",
+                Map.of("reason", "投的是剩菜，摄像头误判"));
+        assertThat(appeal.get("status").asText()).isEqualTo("EVIDENCE_COLLECTED");
+        assertThat(appeal.get("videoClip").asText()).endsWith(".mp4");
+        assertThat(appeal.get("binPosition").asText()).contains("厨余");
         JsonNode reviewed = post("/api/resident/disposals/" + disposalId + "/appeal-review",
                 Map.of("accepted", true, "reviewNote", "现场录像复核为厨余，误判"));
-        assertThat(reviewed.get("status").asText()).isEqualTo("APPEAL_ACCEPTED");
+        assertThat(reviewed.get("status").asText()).isEqualTo("MISJUDGE_CONFIRMED");
+        assertThat(reviewed.get("feedbackSampleId")).isNotNull();
         assertThat(get("/api/resident/CARD1001/profile").get("totalPoints").asInt()).isEqualTo(120);
 
         // 所有告警忽略/解除，联动单以误判关闭，垃圾房释放
@@ -184,7 +189,7 @@ class LinkageFlowIntegrationTest {
         assertThat(gc.getStatus()).isEqualTo(CaseStatus.RESOLVED);
         // 积分流水与投放记录一一对应，且出现退还流水
         JsonNode ledger = get("/api/resident/CARD1001/points-ledger");
-        assertThat(ledger.toString()).contains("申诉成立退还");
+        assertThat(ledger.toString()).contains("积分恢复");
     }
 
     // ---------- 3. 夜间投放高峰 ----------

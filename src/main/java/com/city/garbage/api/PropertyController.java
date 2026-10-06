@@ -1,15 +1,20 @@
 package com.city.garbage.api;
 
 import com.city.garbage.api.dto.AssignTaskRequest;
+import com.city.garbage.api.dto.CalibrationCompleteRequest;
 import com.city.garbage.api.dto.CompleteTaskRequest;
 import com.city.garbage.api.dto.ComplaintReplyRequest;
 import com.city.garbage.api.dto.ComplaintRequest;
+import com.city.garbage.api.dto.AppealReviewRequest;
 import com.city.garbage.domain.*;
 import com.city.garbage.repo.AlertRepository;
 import com.city.garbage.repo.ComplaintRepository;
 import com.city.garbage.repo.GovernanceCaseRepository;
+import com.city.garbage.service.AppealReviewService;
+import com.city.garbage.service.CameraCalibrationService;
 import com.city.garbage.service.ComplaintService;
 import com.city.garbage.service.DisposalService;
+import com.city.garbage.service.ModelFeedbackService;
 import com.city.garbage.service.WorkTaskService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,6 +34,9 @@ public class PropertyController {
     private final WorkTaskService taskService;
     private final ComplaintService complaintService;
     private final DisposalService disposalService;
+    private final AppealReviewService appealReviewService;
+    private final CameraCalibrationService cameraCalibrationService;
+    private final ModelFeedbackService modelFeedbackService;
     private final AlertRepository alertRepository;
     private final GovernanceCaseRepository caseRepository;
     private final ComplaintRepository complaintRepository;
@@ -103,5 +111,49 @@ public class PropertyController {
     public java.util.Map<String, Object> reconcilePoints() {
         int fixed = disposalService.settlePendingPoints();
         return java.util.Map.of("settledCount", fixed);
+    }
+
+    @Operation(summary = "错投申诉复核队列（已取证待复核）")
+    @GetMapping("/appeals/pending")
+    public List<AppealReview> pendingAppeals() {
+        return appealReviewService.pendingReviewQueue();
+    }
+
+    @Operation(summary = "某投放的申诉复核单（含视频片段/重量变化/桶位/居民说明）")
+    @GetMapping("/appeals/disposals/{disposalId}")
+    public AppealReview appealDetail(@PathVariable Long disposalId) {
+        return appealReviewService.getByDisposal(disposalId);
+    }
+
+    @Operation(summary = "复核申诉：accepted=true 误判成立(恢复积分+样本回传)；false 违规成立(派分类教育)")
+    @PostMapping("/appeals/disposals/{disposalId}/review")
+    public AppealReview reviewAppeal(@PathVariable Long disposalId,
+                                     @Valid @RequestBody AppealReviewRequest req) {
+        return appealReviewService.review(disposalId, req.accepted(), req.reviewer(), req.reviewNote());
+    }
+
+    @Operation(summary = "全部摄像头识别质量（误判率与校准状态）")
+    @GetMapping("/cameras")
+    public List<CameraDevice> cameras() {
+        return cameraCalibrationService.all();
+    }
+
+    @Operation(summary = "校准中的摄像头（错投处罚暂停自动生效）")
+    @GetMapping("/cameras/calibrating")
+    public List<CameraDevice> calibratingCameras() {
+        return cameraCalibrationService.calibrating();
+    }
+
+    @Operation(summary = "完成摄像头校准（清零误判率窗口、解除告警/校准任务、恢复处罚自动生效）")
+    @PostMapping("/cameras/{cameraCode}/calibration/complete")
+    public CameraDevice completeCalibration(@PathVariable String cameraCode,
+                                            @Valid @RequestBody CalibrationCompleteRequest req) {
+        return cameraCalibrationService.completeCalibration(cameraCode, req.note());
+    }
+
+    @Operation(summary = "重传所有待回传/失败的误判样本到识别模型")
+    @PostMapping("/model-feedback/retry")
+    public java.util.Map<String, Object> retryFeedback() {
+        return java.util.Map.of("sentCount", modelFeedbackService.retryPending());
     }
 }

@@ -20,4 +20,10 @@ public class LinkageProperties {
     private int notCleanedMinutes = 15;
     /** 积分待结算超过多少秒视为“积分未到账” */
     private int unsettledSeconds = 60;
+    /** 同一摄像头误判率达到该比例（0-1）即进入校准任务 */
+    private double cameraMisjudgeRateThreshold = 0.5;
+    /** 触发误判率评估前，窗口内摄像头判定错投的最少样本数 */
+    private int cameraMinMissortSamples = 2;
+    /** 申诉复核时调取投放前后设备证据（视频/称重）的时间窗（秒） */
+    private int appealEvidenceWindowSeconds = 120;
 }

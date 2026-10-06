@@ -14,6 +14,10 @@ public record DisposalRequest(
         Double weightKg,
         Double confidence,
         /** true=设备断网/积分通道异常，积分暂挂待核查补发 */
-        boolean deferPoints
+        boolean deferPoints,
+        /** 识别摄像头编码，不传时按垃圾房默认 CAM-{roomCode} */
+        String cameraCode,
+        /** 投放桶位，如 厨余垃圾-1号位 */
+        String binPosition
 ) {
 }

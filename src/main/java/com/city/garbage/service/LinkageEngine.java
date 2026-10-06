@@ -120,6 +120,8 @@ public class LinkageEngine {
                     "清运离场后超过" + props.getNotCleanedMinutes() + "分钟未清洁，立即补做清洁", alert.getId());
             case POINTS_UNSETTLED -> createTask(gc, TaskType.RECTIFY, "PROPERTY", 45,
                     "投放积分未到账，核对称重/摄像头数据并补录积分", alert.getId());
+            case CAMERA_MISJUDGE_RATE_HIGH -> createTask(gc, TaskType.CAMERA_CALIBRATION, "PROPERTY", 90,
+                    "摄像头误判率升高，立即校准识别模型/角度；校准期间错投处罚暂停自动生效", alert.getId());
         }
     }
 

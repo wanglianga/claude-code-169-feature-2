@@ -57,6 +57,18 @@ public class DisposalRecord {
 
     private Double confidence;
 
+    /** 产生识别结果的摄像头编码（误判率按摄像头统计） */
+    @Column(name = "camera_code", length = 64)
+    private String cameraCode;
+
+    /** 投放桶位，如 厨余垃圾-1号位（复核取证使用） */
+    @Column(name = "bin_position", length = 64)
+    private String binPosition;
+
+    /** 摄像头校准期间，错投处罚（扣分）暂停自动生效 */
+    @Column(name = "penalty_suspended")
+    private boolean penaltySuspended = false;
+
     /** 现场给居民的违规提示文案 */
     @Column(length = 255)
     private String violationMessage;

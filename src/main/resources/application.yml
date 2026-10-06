@@ -46,6 +46,9 @@ app:
     odor-threshold: 70         # 异味值 >= 70 视为异味告警
     points-per-kg: 10          # 正确投放每公斤积分
     wrong-sort-deduction: 5    # 错投扣减积分（不低于0）
+    camera-misjudge-rate-threshold: 0.5   # 同一摄像头误判率≥50% 进入校准
+    camera-min-missort-samples: 2         # 评估误判率所需最少错投复核样本数
+    appeal-evidence-window-seconds: 120   # 申诉复核调取投放前后视频/称重的时间窗
 
 management:
   endpoints:
